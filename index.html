@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>HolaChat Camera</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      background-color: #000;
+      overflow: hidden;
+      color: #fff;
+    }
+
+    /* Main Container */
+    .camera-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: #000;
+    }
+
+    /* Video Feed & Canvas */
+    #videoFeed, #previewCanvas, #capturedImage, #recordedVideo {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 1;
+    }
+
+    #previewCanvas, #capturedImage, #recordedVideo {
+      display: none;
+      z-index: 2;
+    }
+
+    /* Overlay CSS Filters for Live Camera & Captured Media */
+    .filter-normal { filter: none; }
+    .filter-sepia { filter: sepia(0.8) contrast(1.1); }
+    .filter-grayscale { filter: grayscale(1) contrast(1.2); }
+    .filter-vintage { filter: sepia(0.4) saturate(1.5) contrast(0.9) brightness(1.1); }
+    .filter-warm { filter: sepia(0.3) saturate(1.4) hue-rotate(-10deg); }
+    .filter-cool { filter: saturate(1.2) hue-rotate(30deg) brightness(1.05); }
+
+    /* Top Left Close/Back Button */
+    .close-btn {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 10;
+      background: rgba(0, 0, 0, 0.4);
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      color: #fff;
+      cursor: pointer;
+      backdrop-filter: blur(5px);
+    }
+
+    /* Top Right Vertical Controls Toolbar (As in sketch) */
+    .top-controls {
+      position: absolute;
+      top: 20px;
+      right: 18px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      align-items: center;
+    }
+
+    .tool-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 8px;
+      border-radius: 20px;
+      cursor: pointer;
+      width: 48px;
+      backdrop-filter: blur(4px);
+      transition: all 0.2s ease;
+    }
+
+    .tool-btn i {
+      font-size: 20px;
+      color: #fff;
+    }
+
+    .tool-btn span {
+      font-size: 10px;
+      margin-top: 4px;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+
+    .tool-btn.active {
+      background: rgba(255, 255, 255, 0.3);
+      color: #ffd700;
+    }
+    .tool-btn.active i {
+      color: #ffd700;
+    }
+
+    /* Modal Popups (Songs, Timers, Speed, Filters) */
+    .popup-panel {
+      position: absolute;
+      bottom: 150px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(18, 18, 18, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(15px);
+      border-radius: 18px;
+      padding: 15px;
+      z-index: 20;
+      display: none;
+      width: 85%;
+      max-width: 360px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .popup-panel.active {
+      display: block;
+    }
+
+    /* Songs Search Bar */
+    .song-search-box {
+      display: flex;
+      gap: 8px;
+    }
+
+    .song-search-box input {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: none;
+      outline: none;
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      font-size: 14px;
+    }
+
+    .song-search-box button {
+      padding: 10px 15px;
+      border-radius: 10px;
+      border: none;
+      background: #3b82f6;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    /* Option Selection Pills */
+    .options-group {
+      display: flex;
+      justify-content: space-around;
+      gap: 10px;
+    }
+
+    .option-pill {
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .option-pill.selected {
+      background: #22c55e;
+      color: #fff;
+    }
+
+    /* Filter Carousel horizontal slider */
+    .filter-slider {
+      display: flex;
+      gap: 15px;
+      overflow-x: auto;
+      padding: 5px;
+    }
+
+    .filter-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .filter-circle {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: 2px solid white;
+      margin-bottom: 5px;
+      background-size: cover;
+      background-position: center;
+    }
+
+    /* Bottom Control Bar Area */
+    .bottom-bar {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      z-index: 10;
+      padding-bottom: 25px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+    }
+
+    /* Shutter Button & Storage Icon Row */
+    .shutter-row {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    /* Left Storage / Gallery Button */
+    .storage-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      border: 2px solid rgba(255,255,255,0.8);
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+    }
+
+    .storage-btn i {
+      font-size: 22px;
+      color: #fff;
+    }
+
+    /* Main Center Shutter Circle Button */
+    .shutter-outer {
+      width: 82px;
+      height: 82px;
+      border-radius: 50%;
+      border: 4px solid #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.2s, border-color 0.2s;
+      position: relative;
+    }
+
+    .shutter-inner {
+      width: 66px;
+      height: 66px;
+      border-radius: 50%;
+      background: #fff;
+      transition: all 0.2s ease;
+    }
+
+    /* Dynamic UI changes for Video / Filters Shutter Modes */
+    .mode-video .shutter-inner {
+      background: #ef4444;
+    }
+
+    .mode-video.recording .shutter-inner {
+      border-radius: 8px;
+      transform: scale(0.5);
+    }
+
+    .mode-video.recording .shutter-outer {
+      border-color: #ef4444;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+
+    /* Snapchat Drag-to-Lock Lock Visual UI */
+    .snap-lock-indicator {
+      position: absolute;
+      top: -70px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      padding: 10px 14px;
+      border-radius: 20px;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .snap-lock-indicator.active {
+      display: flex;
+    }
+
+    /* Horizontal Mode Selector Tabs (Videos, Picture, Filters, etc.) */
+    .mode-tabs {
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      max-width: 90%;
+      padding: 5px 10px;
+      scrollbar-width: none;
+    }
+
+    .mode-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .mode-tab {
+      font-size: 14px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.6);
+      text-transform: capitalize;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.2s;
+    }
+
+    .mode-tab.active {
+      color: #facc15;
+      text-shadow: 0 0 8px rgba(250, 204, 21, 0.5);
+    }
+
+    /* Recording Countdown Display */
+    .timer-display {
+      position: absolute;
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(239, 68, 68, 0.85);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 15px;
+      font-weight: bold;
+      z-index: 10;
+      display: none;
+    }
+
+    /* Post-Recording & Media Preview Control Action Bar */
+    .preview-actions {
+      position: absolute;
+      bottom: 30px;
+      width: 100%;
+      z-index: 15;
+      display: none;
+      justify-content: space-around;
+      align-items: center;
+      padding: 0 20px;
+    }
+
+    .action-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .action-circle {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+
+    .btn-delete { background: #ef4444; }
+    .btn-save { background: #22c55e; }
+    .btn-share { background: #3b82f6; }
+
+    /* Share Options Popup Sub-Menu */
+    .share-popup {
+      position: absolute;
+      bottom: 100px;
+      right: 20px;
+      background: rgba(18, 18, 18, 0.95);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 16px;
+      padding: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 25;
+      backdrop-filter: blur(10px);
+    }
+
+    .share-popup.active {
+      display: flex;
+    }
+
+    .share-option {
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .share-option:hover {
+      background: rgba(255,255,255,0.2);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="camera-container">
+
+    <!-- Live Stream Video Feed -->
+    <video id="videoFeed" autoplay playsinline muted></video>
+
+    <!-- Canvas for Image Capture/HD Processing -->
+    <canvas id="previewCanvas"></canvas>
+
+    <!-- Photo Preview Element -->
+    <img id="capturedImage" alt="Captured Photo" />
+
+    <!-- Video Preview Element -->
+    <video id="recordedVideo" controls loop playsinline></video>
+
+    <!-- Top Left Close / Back to post.html Button -->
+    <div class="close-btn" id="closeBtn" title="Go back to post.html">
+      <i class="fa-solid fa-xmark"></i>
+    </div>
+
+    <!-- Timer Countdown Overlay -->
+    <div class="timer-display" id="timerDisplay">00:00</div>
+
+    <!-- Top Right Features Control Sidebar (Matching your notebook sketch) -->
+    <div class="top-controls">
+      <!-- 1. Camera Rotation -->
+      <div class="tool-btn" id="btnRotate" title="Switch Camera">
+        <i class="fa-solid fa-rotate"></i>
+        <span>Flip</span>
+      </div>
+
+      <!-- 2. Flash light -->
+      <div class="tool-btn" id="btnFlash" title="Toggle Flashlight">
+        <i class="fa-solid fa-bolt"></i>
+        <span>Flash</span>
+      </div>
+
+      <!-- 3. Songs -->
+      <div class="tool-btn" id="btnSongs" title="Search Songs">
+        <i class="fa-solid fa-music"></i>
+        <span>Songs</span>
+      </div>
+
+      <!-- 4. HD Mode -->
+      <div class="tool-btn" id="btnHD" title="Toggle HD Quality">
+        <i class="fa-solid fa-high-definition"></i>
+        <span>HD</span>
+      </div>
+
+      <!-- 5. Timer -->
+      <div class="tool-btn" id="btnTimer" title="Set Countdown Timer">
+        <i class="fa-solid fa-stopwatch"></i>
+        <span>Timer</span>
+      </div>
+
+      <!-- 6. Speed -->
+      <div class="tool-btn" id="btnSpeed" title="Set Video Speed">
+        <i class="fa-solid fa-gauge-high"></i>
+        <span>Speed</span>
+      </div>
+    </div>
+
+    <!-- Popups / Modals for Top Controls -->
+    <!-- Songs Search Popup -->
+    <div class="popup-panel" id="songsPanel">
+      <div class="song-search-box">
+        <input type="text" id="songInput" placeholder="Search song from internet..." />
+        <button id="songSearchBtn">Search</button>
+      </div>
+      <div id="songResults" style="margin-top: 10px; font-size: 12px; color: #ccc;"></div>
+    </div>
+
+    <!-- Timer Option Panel -->
+    <div class="popup-panel" id="timerPanel">
+      <div style="margin-bottom: 8px; font-size: 12px; text-align: center;">Set Timer Delay</div>
+      <div class="options-group">
+        <div class="option-pill selected" data-timer="0">Off</div>
+        <div class="option-pill" data-timer="3">3s</div>
+        <div class="option-pill" data-timer="5">5s</div>
+        <div class="option-pill" data-timer="10">10s</div>
+      </div>
+    </div>
+
+    <!-- Video Speed Panel -->
+    <div class="popup-panel" id="speedPanel">
+      <div style="margin-bottom: 8px; font-size: 12px; text-align: center;">Video Playback Speed</div>
+      <div class="options-group">
+        <div class="option-pill" data-speed="0.5">0.5x</div>
+        <div class="option-pill selected" data-speed="1.0">1.0x</div>
+        <div class="option-pill" data-speed="1.5">1.5x</div>
+        <div class="option-pill" data-speed="2.0">2.0x</div>
+      </div>
+    </div>
+
+    <!-- Snapchat-like Filter Selector Overlay -->
+    <div class="popup-panel" id="filterPanel">
+      <div class="filter-slider">
+        <div class="filter-item" data-filter="filter-normal">
+          <div class="filter-circle" style="background:#888;"></div>
+          <span>Normal</span>
+        </div>
+        <div class="filter-item" data-filter="filter-sepia">
+          <div class="filter-circle" style="background:#704214;"></div>
+          <span>Sepia</span>
+        </div>
+        <div class="filter-item" data-filter="filter-grayscale">
+          <div class="filter-circle" style="background:#444;"></div>
+          <span>B&W</span>
+        </div>
+        <div class="filter-item" data-filter="filter-vintage">
+          <div class="filter-circle" style="background:#d4a373;"></div>
+          <span>Vintage</span>
+        </div>
+        <div class="filter-item" data-filter="filter-warm">
+          <div class="filter-circle" style="background:#e07a5f;"></div>
+          <span>Warm</span>
+        </div>
+        <div class="filter-item" data-filter="filter-cool">
+          <div class="filter-circle" style="background:#3d5a80;"></div>
+          <span>Cool</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Interface Controls Area -->
+    <div class="bottom-bar">
+
+      <!-- Shutter Button & Storage Row -->
+      <div class="shutter-row">
+
+        <!-- Hidden Phone Gallery / Storage Input File Picker -->
+        <input type="file" id="filePicker" accept="image/*,video/*" style="display: none;" />
+
+        <!-- Storage / Gallery Button (Bottom Left as per sketch) -->
+        <div class="storage-btn" id="btnStorage" title="Open Storage">
+          <i class="fa-regular fa-image"></i>
+        </div>
+
+        <!-- Snapchat Hold-to-Lock UI Indicator -->
+        <div class="snap-lock-indicator" id="snapLockIndicator">
+          <i class="fa-solid fa-lock"></i> Slide up / locked recording
+        </div>
+
+        <!-- Center Dynamic Shutter Capture Circle -->
+        <div class="shutter-outer" id="shutterOuter">
+          <div class="shutter-inner" id="shutterInner"></div>
+        </div>
+
+        <div style="width: 48px;"></div> <!-- Spacer for symmetry -->
+      </div>
+
+      <!-- Mode Selector Tabs (Videos, Picture, Filters + 2 Extra Modes: Portrait, Night) -->
+      <div class="mode-tabs" id="modeTabs">
+        <div class="mode-tab" data-mode="videos">Videos</div>
+        <div class="mode-tab active" data-mode="picture">Picture</div>
+        <div class="mode-tab" data-mode="filters">Filters</div>
+        <!-- 2 Extra Buttons added to Mode bar as requested -->
+        <div class="mode-tab" data-mode="portrait">Portrait</div>
+        <div class="mode-tab" data-mode="night">Night</div>
+      </div>
+    </div>
+
+    <!-- Post Preview / Stop Button Actions (Remove, Save, Share) -->
+    <div class="preview-actions" id="previewActions">
+      <!-- 1. Remove/Discard Media -->
+      <div class="action-btn" id="btnDelete">
+        <div class="action-circle btn-delete"><i class="fa-solid fa-trash"></i></div>
+        <span>Remove</span>
+      </div>
+
+      <!-- 2. Save to Storage -->
+      <div class="action-btn" id="btnSave">
+        <div class="action-circle btn-save"><i class="fa-solid fa-download"></i></div>
+        <span>Save</span>
+      </div>
+
+      <!-- 3. Share Button -->
+      <div class="action-btn" id="btnShare">
+        <div class="action-circle btn-share"><i class="fa-solid fa-share"></i></div>
+        <span>Share</span>
+      </div>
+    </div>
+
+    <!-- Share Sub-menu Popup -->
+    <div class="share-popup" id="sharePopup">
+      <div class="share-option" id="shareFriends"><i class="fa-solid fa-user-group"></i> Share to Friends</div>
+      <div class="share-option" id="shareStories"><i class="fa-solid fa-circle-notch"></i> Share to Stories</div>
+      <div class="share-option" id="sharePost"><i class="fa-solid fa-paper-plane"></i> Post</div>
+    </div>
+
+  </div>
+
+  <script>
+    // --- DOM Elements ---
+    const videoFeed = document.getElementById('videoFeed');
+    const previewCanvas = document.getElementById('previewCanvas');
+    const capturedImage = document.getElementById('capturedImage');
+    const recordedVideo = document.getElementById('recordedVideo');
+
+    const closeBtn = document.getElementById('closeBtn');
+    const btnRotate = document.getElementById('btnRotate');
+    const btnFlash = document.getElementById('btnFlash');
+    const btnSongs = document.getElementById('btnSongs');
+    const btnHD = document.getElementById('btnHD');
+    const btnTimer = document.getElementById('btnTimer');
+    const btnSpeed = document.getElementById('btnSpeed');
+
+    const songsPanel = document.getElementById('songsPanel');
+    const timerPanel = document.getElementById('timerPanel');
+    const speedPanel = document.getElementById('speedPanel');
+    const filterPanel = document.getElementById('filterPanel');
+
+    const songInput = document.getElementById('songInput');
+    const songSearchBtn = document.getElementById('songSearchBtn');
+    const songResults = document.getElementById('songResults');
+
+    const btnStorage = document.getElementById('btnStorage');
+    const filePicker = document.getElementById('filePicker');
+    const shutterOuter = document.getElementById('shutterOuter');
+    const modeTabs = document.getElementById('modeTabs');
+    const timerDisplay = document.getElementById('timerDisplay');
+    const snapLockIndicator = document.getElementById('snapLockIndicator');
+
+    const previewActions = document.getElementById('previewActions');
+    const btnDelete = document.getElementById('btnDelete');
+    const btnSave = document.getElementById('btnSave');
+    const btnShare = document.getElementById('btnShare');
+    const sharePopup = document.getElementById('sharePopup');
+
+    // --- State Variables ---
+    let currentStream = null;
+    let facingMode = "user"; // 'user' (front) or 'environment' (back)
+    let isFlashOn = false;
+    let isHDMode = false;
+    let activeMode = "picture"; // 'videos', 'picture', 'filters', 'portrait', 'night'
+    let selectedTimer = 0; // in seconds
+    let selectedSpeed = 1.0;
+    let activeFilterClass = "filter-normal";
+
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let isRecording = false;
+    let recordingTimerInterval = null;
+    let secondsRecorded = 0;
+
+    let holdTimer = null;
+    let isSnapLocked = false;
+    let capturedBlob = null;
+    let capturedType = null; // 'image' or 'video'
+
+    // 1. BACK BUTTON TO post.html
+    closeBtn.addEventListener('click', () => {
+      window.location.href = 'post.html';
+    });
+
+    // 2. OPEN PHONE CAMERA AUTOMATICALLY
+    async function startCamera() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+
+      const constraints = {
+        video: {
+          facingMode: facingMode,
+          width: isHDMode ? { ideal: 1920 } : { ideal: 1280 },
+          height: isHDMode ? { ideal: 1080 } : { ideal: 720 }
+        },
+        audio: true
+      };
+
+      try {
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        videoFeed.srcObject = currentStream;
+      } catch (err) {
+        console.error("Camera access error:", err);
+        alert("Unable to access camera or microphone. Please allow permissions.");
+      }
+    }
+
+    window.addEventListener('load', startCamera);
+
+    // 3. CAMERA ROTATION BUTTON (SWITCH FRONT/BACK)
+    btnRotate.addEventListener('click', () => {
+      facingMode = (facingMode === "user") ? "environment" : "user";
+      startCamera();
+    });
+
+    // 4. FLASH LIGHT SWITCH ON/OFF
+    btnFlash.addEventListener('click', async () => {
+      if (!currentStream) return;
+      const track = currentStream.getVideoTracks()[0];
+      const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+
+      if (capabilities.torch) {
+        isFlashOn = !isFlashOn;
+        try {
+          await track.applyConstraints({
+            advanced: [{ torch: isFlashOn }]
+          });
+          btnFlash.classList.toggle('active', isFlashOn);
+        } catch (e) {
+          alert("Flashlight toggling error: " + e.message);
+        }
+      } else {
+        alert("Flashlight/Torch is not supported on this camera device.");
+      }
+    });
+
+    // 5. SONG BUTTON (SEARCH INPUT & BUTTON TO SEARCH INTERNET)
+    btnSongs.addEventListener('click', () => {
+      togglePanel(songsPanel);
+      btnSongs.classList.toggle('active', songsPanel.classList.contains('active'));
+    });
+
+    songSearchBtn.addEventListener('click', () => {
+      const query = songInput.value.trim();
+      if (!query) return;
+      songResults.innerHTML = `Searching for "${query}" on internet...`;
+      setTimeout(() => {
+        songResults.innerHTML = `🎵 Found: "${query} (Official Audio)"<br><button style="margin-top:5px; padding:4px 8px; font-size:11px;" onclick="alert('Song attached!')">Attach to video</button>`;
+      }, 1000);
+    });
+
+    // 6. HD MODE BUTTON (CLEAN AND NICE HIGHER RESOLUTION)
+    btnHD.addEventListener('click', () => {
+      isHDMode = !isHDMode;
+      btnHD.classList.toggle('active', isHDMode);
+      alert(isHDMode ? "HD Mode Enabled (High Quality Stream)" : "Standard Mode Enabled");
+      startCamera();
+    });
+
+    // 7. TIMER BUTTON (COUNTDOWN BEFORE RECORD OR PHOTO)
+    btnTimer.addEventListener('click', () => {
+      togglePanel(timerPanel);
+      btnTimer.classList.toggle('active', timerPanel.classList.contains('active'));
+    });
+
+    document.querySelectorAll('#timerPanel .option-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('#timerPanel .option-pill').forEach(p => p.classList.remove('selected'));
+        pill.classList.add('selected');
+        selectedTimer = parseInt(pill.getAttribute('data-timer'));
+      });
+    });
+
+    // 8. SPEED BUTTON (VIDEO PLAYBACK SPEED)
+    btnSpeed.addEventListener('click', () => {
+      togglePanel(speedPanel);
+      btnSpeed.classList.toggle('active', speedPanel.classList.contains('active'));
+    });
+
+    document.querySelectorAll('#speedPanel .option-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('#speedPanel .option-pill').forEach(p => p.classList.remove('selected'));
+        pill.classList.add('selected');
+        selectedSpeed = parseFloat(pill.getAttribute('data-speed'));
+      });
+    });
+
+    // Helper Panel Toggle
+    function togglePanel(panelToToggle) {
+      const panels = [songsPanel, timerPanel, speedPanel, filterPanel];
+      panels.forEach(p => {
+        if (p !== panelToToggle) p.classList.remove('active');
+      });
+      panelToToggle.classList.toggle('active');
+    }
+
+    // 9. BOTTOM LEFT STORAGE / FILE BUTTON
+    btnStorage.addEventListener('click', () => {
+      filePicker.click();
+    });
+
+    filePicker.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      capturedBlob = file;
+      if (file.type.startsWith('image/')) {
+        capturedType = 'image';
+        capturedImage.src = URL.createObjectURL(file);
+        capturedImage.className = activeFilterClass;
+        capturedImage.style.display = 'block';
+      } else if (file.type.startsWith('video/')) {
+        capturedType = 'video';
+        recordedVideo.src = URL.createObjectURL(file);
+        recordedVideo.playbackRate = selectedSpeed;
+        recordedVideo.className = activeFilterClass;
+        recordedVideo.style.display = 'block';
+      }
+      showPreviewControls();
+    });
+
+    // 10. MODE SWITCHING TABS (Videos, Picture, Filters, + 2 extra)
+    const modeTabElements = document.querySelectorAll('.mode-tab');
+    modeTabElements.forEach(tab => {
+      tab.addEventListener('click', () => {
+        modeTabElements.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        activeMode = tab.getAttribute('data-mode');
+
+        // Reset shutter button styling
+        shutterOuter.className = 'shutter-outer';
+        
+        if (activeMode === 'videos') {
+          shutterOuter.classList.add('mode-video');
+          filterPanel.classList.remove('active');
+        } else if (activeMode === 'filters') {
+          filterPanel.classList.add('active');
+        } else {
+          filterPanel.classList.remove('active');
+        }
+      });
+    });
+
+    // Filter Selection Logic
+    document.querySelectorAll('.filter-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const selectedFilter = item.getAttribute('data-filter');
+        videoFeed.className = selectedFilter;
+        activeFilterClass = selectedFilter;
+      });
+    });
+
+    // 11. SHUTTER BUTTON ACTIONS (CAPTURE & RECORDING & SNAPCHAT FILTER MODE)
+    shutterOuter.addEventListener('click', () => {
+      if (isRecording) {
+        stopRecording();
+        return;
+      }
+
+      if (selectedTimer > 0) {
+        let count = selectedTimer;
+        timerDisplay.innerText = `Starting in ${count}s...`;
+        timerDisplay.style.display = 'block';
+        const countdown = setInterval(() => {
+          count--;
+          if (count > 0) {
+            timerDisplay.innerText = `Starting in ${count}s...`;
+          } else {
+            clearInterval(countdown);
+            timerDisplay.style.display = 'none';
+            triggerShutterAction();
+          }
+        }, 1000);
+      } else {
+        triggerShutterAction();
+      }
+    });
+
+    function triggerShutterAction() {
+      if (activeMode === 'videos') {
+        startRecording();
+      } else {
+        takePicture();
+      }
+    }
+
+    // SNAPCHAT-LIKE HOLD & LOCK RECORDING FOR FILTER/VIDEO MODE
+    shutterOuter.addEventListener('touchstart', (e) => {
+      if (activeMode === 'filters' || activeMode === 'videos') {
+        holdTimer = setTimeout(() => {
+          startRecording();
+          snapLockIndicator.classList.add('active');
+        }, 500);
+      }
+    });
+
+    shutterOuter.addEventListener('touchend', () => {
+      if (holdTimer) clearTimeout(holdTimer);
+      if (isRecording && !isSnapLocked) {
+        stopRecording();
+      }
+    });
+
+    // Take Picture Logic
+    function takePicture() {
+      const context = previewCanvas.getContext('2d');
+      previewCanvas.width = videoFeed.videoWidth || 640;
+      previewCanvas.height = videoFeed.videoHeight || 480;
+
+      // Apply selected CSS Filter onto canvas context
+      context.filter = getComputedStyle(videoFeed).filter;
+      context.drawImage(videoFeed, 0, 0, previewCanvas.width, previewCanvas.height);
+
+      previewCanvas.toBlob((blob) => {
+        capturedBlob = blob;
+        capturedType = 'image';
+        capturedImage.src = URL.createObjectURL(blob);
+        capturedImage.style.display = 'block';
+        showPreviewControls();
+      }, 'image/jpeg', 0.95);
+    }
+
+    // Video Recording Logic
+    function startRecording() {
+      if (!currentStream) return;
+      recordedChunks = [];
+      try {
+        mediaRecorder = new MediaRecorder(currentStream, { mimeType: 'video/webm' });
+      } catch (e) {
+        mediaRecorder = new MediaRecorder(currentStream);
+      }
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        capturedBlob = new Blob(recordedChunks, { type: 'video/webm' });
+        capturedType = 'video';
+        recordedVideo.src = URL.createObjectURL(capturedBlob);
+        recordedVideo.playbackRate = selectedSpeed;
+        recordedVideo.className = activeFilterClass;
+        recordedVideo.style.display = 'block';
+        showPreviewControls();
+      };
+
+      mediaRecorder.start();
+      isRecording = true;
+      shutterOuter.classList.add('recording');
+
+      // Recording Timer UI
+      secondsRecorded = 0;
+      timerDisplay.innerText = "00:00";
+      timerDisplay.style.display = 'block';
+      recordingTimerInterval = setInterval(() => {
+        secondsRecorded++;
+        const mins = String(Math.floor(secondsRecorded / 60)).padStart(2, '0');
+        const secs = String(secondsRecorded % 60).padStart(2, '0');
+        timerDisplay.innerText = `${mins}:${secs}`;
+      }, 1000);
+    }
+
+    function stopRecording() {
+      if (!isRecording) return;
+      mediaRecorder.stop();
+      isRecording = false;
+      clearInterval(recordingTimerInterval);
+      timerDisplay.style.display = 'none';
+      snapLockIndicator.classList.remove('active');
+      shutterOuter.classList.remove('recording');
+    }
+
+    // 12. PREVIEW ACTION BUTTONS (REMOVE, SAVE, SHARE)
+    function showPreviewControls() {
+      previewActions.style.display = 'flex';
+    }
+
+    function resetPreview() {
+      capturedImage.style.display = 'none';
+      recordedVideo.style.display = 'none';
+      recordedVideo.pause();
+      previewActions.style.display = 'none';
+      sharePopup.classList.remove('active');
+      capturedBlob = null;
+      capturedType = null;
+    }
+
+    // Delete / Remove Button
+    btnDelete.addEventListener('click', resetPreview);
+
+    // Save Button
+    btnSave.addEventListener('click', () => {
+      if (!capturedBlob) return;
+      const url = URL.createObjectURL(capturedBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = capturedType === 'image' ? `HolaChat_IMG_${Date.now()}.jpg` : `HolaChat_VID_${Date.now()}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      alert("Saved to phone storage!");
+    });
+
+    // Share Button Popup Toggle
+    btnShare.addEventListener('click', () => {
+      sharePopup.classList.toggle('active');
+    });
+
+    // 3 Share Action Buttons
+    document.getElementById('shareFriends').addEventListener('click', () => {
+      alert("Shared to Friends!");
+      sharePopup.classList.remove('active');
+    });
+
+    document.getElementById('shareStories').addEventListener('click', () => {
+      alert("Shared to Stories!");
+      sharePopup.classList.remove('active');
+    });
+
+    document.getElementById('sharePost').addEventListener('click', () => {
+      alert("Shared to Post!");
+      sharePopup.classList.remove('active');
+      window.location.href = 'post.html';
+    });
+  </script>
+</body>
+</html>
